@@ -10,7 +10,8 @@ import {
   CheckSquare, 
   ClipboardList, 
   Search,
-  AlertCircle
+  AlertCircle,
+  Download
 } from 'lucide-react';
 
 export const BackendInterface = () => {
@@ -51,6 +52,56 @@ export const BackendInterface = () => {
     return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'numeric', day: 'numeric' });
   };
 
+  const handleExportCSV = () => {
+    // Define headers
+    const headers = [
+      'ID',
+      'Customer Name',
+      'Email',
+      'Type',
+      'Item',
+      'Quantity',
+      'Status',
+      'Submitted At',
+      'Completed At',
+      'Cost Per Item',
+      'Time Per Item (min)'
+    ];
+
+    // Format rows
+    const csvRows = [
+      headers.join(','), // Header row
+      ...queue.map(row => {
+        return [
+          row.id,
+          `"${row.customerName.replace(/"/g, '""')}"`, // Escape quotes
+          `"${row.email.replace(/"/g, '""')}"`,
+          row.type,
+          row.item,
+          row.quantity,
+          row.status,
+          row.submittedAt,
+          row.completedAt || '',
+          row.costPerItem,
+          row.timePerItem
+        ].join(',');
+      })
+    ];
+
+    // Create and download file
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `engraving_queue_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-8 animate-fade-in">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -59,6 +110,14 @@ export const BackendInterface = () => {
           <p className="text-slate-500">Manage incoming orders and workflow</p>
         </div>
         <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportCSV}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors shadow-sm"
+              title="Download CSV for BigQuery"
+            >
+              <Download className="w-4 h-4" />
+              Export History
+            </button>
             <div className="relative">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
                 <input 

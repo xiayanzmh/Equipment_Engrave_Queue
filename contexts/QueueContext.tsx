@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { QueueEntry, QueueContextType, CartItem, QueueStatus, WaitTimeEstimate } from '../types';
+import { API_CONFIG } from '../constants';
 
 const QueueContext = createContext<QueueContextType | undefined>(undefined);
 
@@ -25,6 +26,39 @@ export const QueueProvider = ({ children }: { children?: ReactNode }) => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(queue));
   }, [queue]);
 
+  // Helper to sync data to backend (BigQuery ingestion)
+  const syncToBackend = async (eventType: string, data: any) => {
+    if (!API_CONFIG.ENABLED) return;
+
+    // Fire and forget - don't block UI
+    try {
+      const payload = {
+        event_type: eventType,
+        timestamp: new Date().toISOString(),
+        data: data
+      };
+
+      console.log(`[API] Syncing ${eventType} to ${API_CONFIG.ENDPOINT}...`, payload);
+
+      const response = await fetch(API_CONFIG.ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}`);
+      }
+      
+      console.log(`[API] ${eventType} synced successfully`);
+    } catch (error) {
+      // In a real app, you might queue these for retry
+      console.warn(`[API] Failed to sync ${eventType}. System continuing in offline mode.`, error);
+    }
+  };
+
   const addEntries = (name: string, email: string, items: CartItem[]) => {
     const newEntries: QueueEntry[] = items.map(item => ({
       id: crypto.randomUUID(),
@@ -40,9 +74,14 @@ export const QueueProvider = ({ children }: { children?: ReactNode }) => {
     }));
 
     setQueue(prev => [...prev, ...newEntries]);
+    
+    // Send new orders to backend
+    syncToBackend('ORDER_CREATED', { orders: newEntries });
   };
 
   const updateStatus = (id: string, status: QueueStatus) => {
+    let updatedEntry: QueueEntry | undefined;
+
     setQueue(prev => prev.map(entry => {
       if (entry.id !== id) return entry;
       
@@ -54,12 +93,25 @@ export const QueueProvider = ({ children }: { children?: ReactNode }) => {
         updates.completedAt = undefined; 
       }
       
-      return { ...entry, ...updates };
+      const result = { ...entry, ...updates };
+      updatedEntry = result;
+      return result;
     }));
+
+    // Send status update to backend
+    if (updatedEntry) {
+      syncToBackend('STATUS_UPDATED', { 
+        id: updatedEntry.id, 
+        status: status, 
+        completed_at: status === 'completed' ? updatedEntry.completedAt : null 
+      });
+    }
   };
 
   const deleteEntry = (id: string) => {
     setQueue(prev => prev.filter(entry => entry.id !== id));
+    // Optional: Log deletion
+    syncToBackend('ORDER_DELETED', { id });
   };
 
   const getPendingCount = () => {
