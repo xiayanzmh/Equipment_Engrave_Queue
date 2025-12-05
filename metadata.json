@@ -1,0 +1,5 @@
+{
+  "name": "Equipment_Engrave_Queue",
+  "description": "A modern queue management system for engraving services featuring a customer kiosk for orders and a backend dashboard for staff to manage workflow.",
+  "requestFramePermissions": []
+}
