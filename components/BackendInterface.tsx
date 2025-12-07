@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useQueue } from '../contexts/QueueContext';
 import { QueueStatus, QueueEntry } from '../types';
@@ -11,10 +12,10 @@ import {
   ClipboardList, 
   Search,
   AlertCircle,
-  Download
+  Download,
+  Database,
+  ExternalLink
 } from 'lucide-react';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../firebase';
 
 export const BackendInterface = () => {
   const { queue, updateStatus, deleteEntry, stats } = useQueue();
@@ -30,7 +31,8 @@ export const BackendInterface = () => {
     .filter(entry => 
       entry.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       entry.id.includes(searchTerm) ||
-      entry.item.toLowerCase().includes(searchTerm.toLowerCase())
+      entry.item.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (entry.engravingText && entry.engravingText.toLowerCase().includes(searchTerm.toLowerCase()))
     )
     .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime());
 
@@ -51,17 +53,18 @@ export const BackendInterface = () => {
   };
 
   const formatTime = (dateStr: string) => {
-    if (!dateStr) return 'N/A';
     return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'numeric', day: 'numeric' });
   };
 
-  const handleExportCSV = async () => {
+  const handleExportCSV = () => {
+    // Define headers
     const headers = [
       'ID',
       'Customer Name',
       'Email',
       'Type',
       'Item',
+      'Engraving Text',
       'Quantity',
       'Status',
       'Submitted At',
@@ -70,27 +73,17 @@ export const BackendInterface = () => {
       'Time Per Item (min)'
     ];
 
-    const querySnapshot = await getDocs(collection(db, "queue"));
-    const allEntries: QueueEntry[] = [];
-    querySnapshot.forEach(doc => {
-        const data = doc.data();
-        allEntries.push({
-            ...data,
-            id: doc.id,
-            submittedAt: data.submittedAt?.toDate ? data.submittedAt.toDate().toISOString() : 'N/A',
-            completedAt: data.completedAt?.toDate ? data.completedAt.toDate().toISOString() : 'N/A',
-        } as QueueEntry)
-    });
-
+    // Format rows
     const csvRows = [
-      headers.join(','),
-      ...allEntries.map(row => {
+      headers.join(','), // Header row
+      ...queue.map(row => {
         return [
           row.id,
-          `"${row.customerName.replace(/"/g, '""')}"`,
+          `"${row.customerName.replace(/"/g, '""')}"`, // Escape quotes
           `"${row.email.replace(/"/g, '""')}"`,
           row.type,
           row.item,
+          row.engravingText ? `"${row.engravingText.replace(/"/g, '""')}"` : '',
           row.quantity,
           row.status,
           row.submittedAt,
@@ -101,6 +94,7 @@ export const BackendInterface = () => {
       })
     ];
 
+    // Create and download file
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -119,13 +113,27 @@ export const BackendInterface = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Queue Management</h2>
-          <p className="text-slate-500">Manage incoming orders and workflow</p>
+          <div className="flex items-center gap-2 text-slate-500 text-sm mt-1">
+             <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                <span>Database Connected</span>
+             </div>
+             <span>•</span>
+             <a 
+               href="https://console.firebase.google.com/project/gen-lang-client-0550598157/firestore/data" 
+               target="_blank" 
+               rel="noopener noreferrer"
+               className="flex items-center gap-1 text-indigo-600 hover:text-indigo-800 hover:underline"
+             >
+               View Raw Data <ExternalLink className="w-3 h-3" />
+             </a>
+          </div>
         </div>
         <div className="flex items-center gap-2">
             <button
               onClick={handleExportCSV}
               className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors shadow-sm"
-              title="Download all history as CSV"
+              title="Download CSV for BigQuery"
             >
               <Download className="w-4 h-4" />
               Export History
@@ -143,18 +151,57 @@ export const BackendInterface = () => {
         </div>
       </div>
 
+      {/* Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <MetricCard label="Pending" value={stats.pending} icon={<Clock className="w-5 h-5 text-amber-600" />} color="border-amber-500" />
-        <MetricCard label="Processing" value={stats.processing} icon={<RotateCw className="w-5 h-5 text-blue-600" />} color="border-blue-500" />
-        <MetricCard label="Completed" value={stats.completed} icon={<CheckCircle className="w-5 h-5 text-green-600" />} color="border-green-500" />
-        <MetricCard label="Total Orders" value={stats.total} icon={<ClipboardList className="w-5 h-5 text-slate-600" />} color="border-slate-500" />
+        <MetricCard 
+          label="Pending" 
+          value={stats.pending} 
+          icon={<Clock className="w-5 h-5 text-amber-600" />} 
+          color="border-amber-500" 
+        />
+        <MetricCard 
+          label="Processing" 
+          value={stats.processing} 
+          icon={<RotateCw className="w-5 h-5 text-blue-600" />} 
+          color="border-blue-500" 
+        />
+        <MetricCard 
+          label="Completed" 
+          value={stats.completed} 
+          icon={<CheckCircle className="w-5 h-5 text-green-600" />} 
+          color="border-green-500" 
+        />
+        <MetricCard 
+          label="Total Orders" 
+          value={stats.total} 
+          icon={<ClipboardList className="w-5 h-5 text-slate-600" />} 
+          color="border-slate-500" 
+        />
       </div>
 
+      {/* Tabs */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="flex border-b border-slate-200">
-          <TabButton active={activeTab === 'pending'} onClick={() => setActiveTab('pending')} label="Active Queue" count={stats.pending} icon={<Clock className="w-4 h-4" />} />
-          <TabButton active={activeTab === 'processing'} onClick={() => setActiveTab('processing')} label="In Progress" count={stats.processing} icon={<RotateCw className="w-4 h-4" />} />
-          <TabButton active={activeTab === 'all'} onClick={() => setActiveTab('all')} label="All Entries" icon={<ClipboardList className="w-4 h-4" />} />
+          <TabButton 
+            active={activeTab === 'pending'} 
+            onClick={() => setActiveTab('pending')} 
+            label="Active Queue" 
+            count={stats.pending}
+            icon={<Clock className="w-4 h-4" />}
+          />
+          <TabButton 
+            active={activeTab === 'processing'} 
+            onClick={() => setActiveTab('processing')} 
+            label="In Progress" 
+            count={stats.processing}
+            icon={<RotateCw className="w-4 h-4" />}
+          />
+          <TabButton 
+            active={activeTab === 'all'} 
+            onClick={() => setActiveTab('all')} 
+            label="All Entries" 
+            icon={<ClipboardList className="w-4 h-4" />}
+          />
         </div>
 
         <div className="p-6">
@@ -171,6 +218,7 @@ export const BackendInterface = () => {
               {filteredQueue.map(entry => (
                 <div key={entry.id} className="bg-white border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                   <div className="flex flex-col md:flex-row justify-between gap-4">
+                    {/* Header / Info */}
                     <div className="flex-1 space-y-3">
                       <div className="flex items-center gap-3">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(entry.status)} uppercase tracking-wide`}>
@@ -187,6 +235,11 @@ export const BackendInterface = () => {
                            <span className="text-slate-500 block text-xs uppercase tracking-wide mb-1">Item Details</span>
                            <div className="font-medium text-slate-800">{entry.type} - {entry.item}</div>
                            <div className="text-slate-500">Qty: {entry.quantity}</div>
+                           {entry.engravingText && (
+                             <div className="text-indigo-600 font-medium bg-indigo-50 px-2 py-1 rounded mt-1 inline-block text-xs">
+                               "{entry.engravingText}"
+                             </div>
+                           )}
                         </div>
                         <div>
                            <span className="text-slate-500 block text-xs uppercase tracking-wide mb-1">Timeline</span>
@@ -202,15 +255,22 @@ export const BackendInterface = () => {
                       </div>
                     </div>
 
+                    {/* Actions */}
                     {entry.status !== 'completed' && (
                         <div className="flex items-center gap-2 border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-4">
                             {entry.status === 'pending' && (
-                                <button onClick={() => updateStatus(entry.id, 'processing')} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm">
+                                <button 
+                                    onClick={() => updateStatus(entry.id, 'processing')}
+                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+                                >
                                     <Play className="w-4 h-4" /> Start
                                 </button>
                             )}
                             {entry.status === 'processing' && (
-                                <button onClick={() => updateStatus(entry.id, 'completed')} className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm">
+                                <button 
+                                    onClick={() => updateStatus(entry.id, 'completed')}
+                                    className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+                                >
                                     <CheckSquare className="w-4 h-4" /> Complete
                                 </button>
                             )}
@@ -228,9 +288,13 @@ export const BackendInterface = () => {
                         </div>
                     )}
                     
+                    {/* Actions for completed (Delete only) */}
                     {entry.status === 'completed' && (
                          <div className="flex items-center justify-end border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-4">
-                            <button onClick={() => deleteEntry(entry.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                            <button 
+                                onClick={() => deleteEntry(entry.id)}
+                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            >
                                 <Trash2 className="w-4 h-4" />
                             </button>
                         </div>

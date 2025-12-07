@@ -12,6 +12,7 @@ export interface QueueEntry {
   completedAt?: string; // ISO string
   costPerItem: number;
   timePerItem: number; // minutes
+  engravingText?: string;
 }
 
 export interface CartItem {
@@ -20,6 +21,7 @@ export interface CartItem {
   number: number;
   costPerItem: number;
   timePerItem: number;
+  engravingText?: string;
 }
 
 export interface PricingDetail {
@@ -42,7 +44,7 @@ export interface WaitTimeEstimate {
 
 export interface QueueContextType {
   queue: QueueEntry[];
-  addEntries: (name: string, email: string, items: CartItem[]) => void;
+  addEntries: (name: string, email: string, items: CartItem[]) => Promise<void>;
   updateStatus: (id: string, status: QueueStatus) => void;
   deleteEntry: (id: string) => void;
   getPendingCount: () => number;

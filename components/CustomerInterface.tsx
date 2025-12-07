@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useQueue } from '../contexts/QueueContext';
 import { PRICING_CONFIG } from '../constants';
 import { CartItem, WaitTimeEstimate } from '../types';
-import { ShoppingCart, Plus, Trash2, CheckCircle, Clock, DollarSign, Info, Users } from 'lucide-react';
+import { ShoppingCart, Plus, Trash2, CheckCircle, Clock, DollarSign, Info, Users, PenTool, Loader } from 'lucide-react';
 
 export const CustomerInterface = () => {
   const { getPendingCount, addEntries, calculateWaitTime, queue } = useQueue();
@@ -14,9 +14,11 @@ export const CustomerInterface = () => {
   const [selectedType, setSelectedType] = useState('');
   const [selectedItem, setSelectedItem] = useState('');
   const [quantity, setQuantity] = useState(1);
+  const [engravingText, setEngravingText] = useState('');
   
   // UI State
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [successData, setSuccessData] = useState<{ count: number, waitEstimates: WaitTimeEstimate } | null>(null);
 
   const pendingCount = getPendingCount();
@@ -34,19 +36,20 @@ export const CustomerInterface = () => {
   }, [cart, queue, calculateWaitTime]);
 
   const addToCart = () => {
-    if (!selectedType || !selectedItem || !currentItemDetails) return;
+    if (!selectedType || !selectedItem || !currentItemDetails || !engravingText.trim()) return;
 
     const newItem: CartItem = {
       type: selectedType,
       item: selectedItem,
       number: quantity,
       costPerItem: currentItemDetails.cost_per_item,
-      timePerItem: currentItemDetails.time_per_item_minutes
+      timePerItem: currentItemDetails.time_per_item_minutes,
+      engravingText: engravingText.trim()
     };
 
-    // Check if exists to update quantity
+    // Check if exists to update quantity (only if engraving text matches)
     const existingIndex = cart.findIndex(
-      c => c.type === newItem.type && c.item === newItem.item
+      c => c.type === newItem.type && c.item === newItem.item && c.engravingText === newItem.engravingText
     );
 
     if (existingIndex >= 0) {
@@ -60,6 +63,7 @@ export const CustomerInterface = () => {
     // Reset item selection
     setSelectedItem('');
     setQuantity(1);
+    setEngravingText('');
   };
 
   const removeFromCart = (index: number) => {
@@ -73,27 +77,36 @@ export const CustomerInterface = () => {
     }), { cost: 0, time: 0 });
   }, [cart]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!name || !email || cart.length === 0) return;
     
-    // Capture estimates before adding (as adding changes the queue)
-    const currentEstimates = calculateWaitTime(cart);
-    
-    addEntries(name, email, cart);
-    
-    // Show success
-    setSuccessData({
-      count: cart.reduce((acc, item) => acc + item.number, 0),
-      waitEstimates: currentEstimates
-    });
-    
-    // Reset form
-    setCart([]);
-    setName('');
-    setEmail('');
-    setSelectedType('');
-    setSelectedItem('');
-    setShowConfirmation(false);
+    setIsSubmitting(true);
+    try {
+        // Capture estimates before adding (as adding changes the queue)
+        const currentEstimates = calculateWaitTime(cart);
+        
+        await addEntries(name, email, cart);
+        
+        // Show success
+        setSuccessData({
+          count: cart.reduce((acc, item) => acc + item.number, 0),
+          waitEstimates: currentEstimates
+        });
+        
+        // Reset form
+        setCart([]);
+        setName('');
+        setEmail('');
+        setSelectedType('');
+        setSelectedItem('');
+        setEngravingText('');
+        setShowConfirmation(false);
+    } catch (error) {
+        console.error("Submission failed", error);
+        alert("Failed to submit order. Please check your connection and try again.");
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   const handleReset = () => {
@@ -208,7 +221,7 @@ export const CustomerInterface = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Customer Name</label>
               <input
                 type="text"
                 value={name}
@@ -263,6 +276,22 @@ export const CustomerInterface = () => {
             </div>
           </div>
 
+          {/* Engraving Text Input */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
+              <PenTool className="w-4 h-4 text-slate-400" />
+              Engraving Text *
+            </label>
+            <input
+              type="text"
+              value={engravingText}
+              onChange={(e) => setEngravingText(e.target.value)}
+              placeholder="e.g. Initials, Name, or 'USA'"
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all bg-white text-slate-900"
+            />
+            <p className="text-xs text-slate-500 mt-1">This text will be engraved on the selected items.</p>
+          </div>
+
           {currentItemDetails && (
              <div className="bg-blue-50 text-blue-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
                 <Info className="w-4 h-4" />
@@ -285,7 +314,7 @@ export const CustomerInterface = () => {
              </div>
              <button
                 onClick={addToCart}
-                disabled={!selectedItem}
+                disabled={!selectedItem || !engravingText.trim()}
                 className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
              >
                <Plus className="w-4 h-4" /> Add to Request
@@ -323,6 +352,11 @@ export const CustomerInterface = () => {
                           {item.type}
                         </span>
                       </div>
+                      {item.engravingText && (
+                        <div className="text-xs text-indigo-600 font-medium mt-1">
+                          "{item.engravingText}"
+                        </div>
+                      )}
                       <div className="text-sm text-slate-500 mt-1">
                         Qty: {item.number} × ${item.costPerItem.toFixed(2)}
                       </div>
@@ -432,6 +466,9 @@ export const CustomerInterface = () => {
                         <div key={idx} className="p-3 flex justify-between text-sm">
                             <span className="text-slate-700">
                                 <span className="font-medium">{item.number}x</span> {item.item}
+                                {item.engravingText && (
+                                  <span className="block text-xs text-indigo-600 mt-1">Text: "{item.engravingText}"</span>
+                                )}
                             </span>
                             <span className="text-slate-500">
                                 ${(item.costPerItem * item.number).toFixed(2)}
@@ -444,15 +481,23 @@ export const CustomerInterface = () => {
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={() => setShowConfirmation(false)}
-                  className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors"
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50"
                 >
                   Modify
                 </button>
                 <button
                   onClick={handleSubmit}
-                  className="flex-1 px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all"
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-wait"
                 >
-                  Confirm & Submit
+                  {isSubmitting ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" /> Submitting...
+                    </>
+                  ) : (
+                    'Confirm & Submit'
+                  )}
                 </button>
               </div>
             </div>

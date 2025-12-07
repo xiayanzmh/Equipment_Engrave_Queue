@@ -22,7 +22,7 @@ export const Layout = ({ children, isLoggedIn, onLogout, currentView, onChangeVi
                   <Ticket className="h-6 w-6 text-white" />
                 </div>
                 <div className="flex flex-col">
-                    <span className="font-bold text-xl text-slate-900 tracking-tight">EngraveQueue</span>
+                    <span className="font-bold text-xl text-slate-900 tracking-tight">EngraveQueue Kiosk</span>
                     <span className="text-xs text-slate-500 font-medium">Management System v1.0</span>
                 </div>
               </div>
@@ -77,7 +77,7 @@ export const Layout = ({ children, isLoggedIn, onLogout, currentView, onChangeVi
       <footer className="bg-white border-t border-slate-200 mt-auto">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <p className="text-center text-sm text-slate-400">
-            &copy; {new Date().getFullYear()} EngraveQueue System. All rights reserved.
+            &copy; {new Date().getFullYear()} EngraveQueue Kiosk. All rights reserved.
           </p>
         </div>
       </footer>
