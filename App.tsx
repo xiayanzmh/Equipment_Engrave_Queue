@@ -1,56 +1,52 @@
 import React, { useState } from 'react';
-import { QueueProvider } from './contexts/QueueContext';
 import { Layout } from './components/Layout';
 import { CustomerInterface } from './components/CustomerInterface';
 import { BackendInterface } from './components/BackendInterface';
 import { Login } from './components/Login';
+import { QueueProvider } from './contexts/QueueContext';
+import { Toaster } from 'react-hot-toast';
 
-const App = () => {
-  const [currentView, setCurrentView] = useState('customer'); // 'customer', 'login', 'backend'
+function App() {
+  const [currentView, setCurrentView] = useState('customer'); // 'customer' or 'backend'
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  const handleLogin = () => {
-    setIsLoggedIn(true);
-    setCurrentView('backend');
+  // A simple mock login function
+  const handleLogin = (password: string) => {
+    // In a real app, you'd verify this against a backend
+    if (password === 'password') { // Replace with a more secure check
+      setIsLoggedIn(true);
+      setCurrentView('backend'); // Default to backend view after login
+      return true;
+    }
+    return false;
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
-    setCurrentView('customer');
-  };
-
-  const handleChangeView = (view: string) => {
-    if (view === 'backend' && !isLoggedIn) {
-      setCurrentView('login');
-    } else {
-      setCurrentView(view);
-    }
-  };
-
-  const renderContent = () => {
-    switch (currentView) {
-      case 'login':
-        return <Login onLogin={handleLogin} onCancel={() => setCurrentView('customer')} />;
-      case 'backend':
-        return isLoggedIn ? <BackendInterface /> : <Login onLogin={handleLogin} onCancel={() => setCurrentView('customer')} />;
-      case 'customer':
-      default:
-        return <CustomerInterface />;
-    }
+    setCurrentView('customer'); // Revert to customer view on logout
   };
 
   return (
     <QueueProvider>
+      <Toaster position="bottom-right" />
       <Layout 
-        isLoggedIn={isLoggedIn} 
+        isLoggedIn={isLoggedIn}
         onLogout={handleLogout}
         currentView={currentView}
-        onChangeView={handleChangeView}
+        onChangeView={setCurrentView}
       >
-        {renderContent()}
+        {!isLoggedIn ? (
+          <div className="p-8">
+            <Login onLogin={handleLogin} />
+          </div>
+        ) : currentView === 'customer' ? (
+          <CustomerInterface />
+        ) : (
+          <BackendInterface />
+        )}
       </Layout>
     </QueueProvider>
   );
-};
+}
 
 export default App;
