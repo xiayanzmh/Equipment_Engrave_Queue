@@ -1,6 +1,6 @@
 
-import firebase from 'firebase/app';
-import 'firebase/firestore';
+import { initializeApp } from 'firebase/app';
+import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDtm-13Eavq9c6zVy1qjB65WyY39SHO6zI",
@@ -12,15 +12,11 @@ const firebaseConfig = {
   measurementId: "G-9DCBN2E3S0"
 };
 
-// 1. Initialize the App (Namespaced Syntax)
-// Check if apps are already initialized to avoid errors in strict mode
-if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-}
+// 1. Initialize the App
+const app = initializeApp(firebaseConfig);
 
 // 2. Initialize Firestore
-// Using the default database as v8 SDK does not standardly support named databases easily.
-// If a specific named database is required, a newer SDK version (v9+) is recommended.
-export const db = firebase.firestore();
+// Connect explicitly to the 'customer-orders' database ID to fix timeout/connection hanging issues.
+export const db = getFirestore(app, 'customer-orders');
 
-console.log("Firebase initialized (Namespaced SDK) for default database");
+console.log("Firebase initialized (Modular SDK) for 'customer-orders' database");

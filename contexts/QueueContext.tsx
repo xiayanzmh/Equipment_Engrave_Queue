@@ -2,16 +2,19 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { QueueEntry, QueueContextType, CartItem, QueueStatus, WaitTimeEstimate } from '../types';
 import { db } from '../firebaseConfig';
-// import { 
-//   collection, 
-//   addDoc, 
-//   updateDoc, 
-//   deleteDoc, 
-//   doc, 
-//   onSnapshot, 
-//   query, 
-//   orderBy 
-// } from 'firebase/firestore';
+import { 
+  collection, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  onSnapshot, 
+  query, 
+  orderBy
+} from 'firebase/firestore';
+
+// Import types separately to avoid runtime errors if the module doesn't export them as values
+import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 
 const QueueContext = createContext<QueueContextType | undefined>(undefined);
 
@@ -20,12 +23,13 @@ export const QueueProvider = ({ children }: { children?: ReactNode }) => {
 
   // Real-time Firestore Listener
   useEffect(() => {
-    // Namespaced Syntax: db.collection(...).orderBy(...)
-    const query = db.collection('queue').orderBy('submittedAt', 'asc');
+    // Modular Syntax: query(collection(...), orderBy(...))
+    const q = query(collection(db, 'queue'), orderBy('submittedAt', 'asc'));
 
-    // Namespaced Syntax: query.onSnapshot(...)
-    const unsubscribe = query.onSnapshot(
-      (snapshot) => {
+    // Modular Syntax: onSnapshot(query, callback)
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot: QuerySnapshot<DocumentData>) => {
         const entries: QueueEntry[] = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data()
@@ -35,6 +39,9 @@ export const QueueProvider = ({ children }: { children?: ReactNode }) => {
       },
       (error: any) => {
         console.error("Error connecting to Firestore:", error);
+        if (error.code === 'permission-denied') {
+            console.warn("⚠️ PERMISSION DENIED: Please go to Firebase Console > Firestore Database > Rules and change them to 'allow read, write: if true;'");
+        }
       }
     );
 
@@ -45,15 +52,15 @@ export const QueueProvider = ({ children }: { children?: ReactNode }) => {
   const addEntries = async (name: string, email: string, items: CartItem[]) => {
     console.log("Starting write to Firestore...");
     
-    // Create a Promise that rejects after 10 seconds to handle hanging connections
+    // Create a Promise that rejects after 30 seconds to handle hanging connections
     const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Request timed out. Check your internet or Database Permissions.")), 10000)
+        setTimeout(() => reject(new Error("Request timed out. Please check if your computer can access Google Cloud, or if the database ID 'customer-orders' exists.")), 30000)
     );
 
     const performWrite = async () => {
         const batchPromises = items.map(item => {
-            // Namespaced Syntax: db.collection(...).add(...)
-            return db.collection('queue').add({
+            // Modular Syntax: addDoc(collection(...), data)
+            return addDoc(collection(db, 'queue'), {
                 customerName: name,
                 email,
                 type: item.type,
@@ -84,8 +91,9 @@ export const QueueProvider = ({ children }: { children?: ReactNode }) => {
     }
     
     try {
-      // Namespaced Syntax: db.collection(...).doc(...).update(...)
-      await db.collection('queue').doc(id).update(updates);
+      // Modular Syntax: updateDoc(doc(...), data)
+      const entryRef = doc(db, 'queue', id);
+      await updateDoc(entryRef, updates);
     } catch (e) {
       console.error("Error updating status:", e);
       alert("Failed to update status. Check console.");
@@ -94,8 +102,9 @@ export const QueueProvider = ({ children }: { children?: ReactNode }) => {
 
   const deleteEntry = async (id: string) => {
     try {
-      // Namespaced Syntax: db.collection(...).doc(...).delete()
-      await db.collection('queue').doc(id).delete();
+      // Modular Syntax: deleteDoc(doc(...))
+      const entryRef = doc(db, 'queue', id);
+      await deleteDoc(entryRef);
     } catch (e) {
       console.error("Error deleting entry:", e);
       alert("Failed to delete entry.");
