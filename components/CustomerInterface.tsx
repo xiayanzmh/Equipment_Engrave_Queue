@@ -49,7 +49,13 @@ export const CustomerInterface = () => {
   }, [queue, calculateWaitTime]);
 
   const addToCart = () => {
-    if (!selectedType || !selectedItem || !currentItemDetails || !engravingText.trim()) return;
+    if (!selectedType || !selectedItem || !currentItemDetails) return;
+    
+    // Strict validation for engraving text
+    if (!engravingText.trim()) {
+        alert("Please enter the text to be engraved.");
+        return;
+    }
 
     const newItem: CartItem = {
       type: selectedType,
@@ -319,9 +325,10 @@ export const CustomerInterface = () => {
                 </label>
                 <input
                   type="text"
+                  required
                   value={engravingText}
                   onChange={(e) => setEngravingText(e.target.value)}
-                  placeholder="e.g. Initials, Name, or 'USA'"
+                  placeholder="e.g. Initials, Name (Required)"
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all bg-white text-slate-900"
                 />
                 <p className="text-xs text-slate-500 mt-1">This text will be engraved on the selected items.</p>
