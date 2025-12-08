@@ -1,6 +1,6 @@
-
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import { getAuth, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDtm-13Eavq9c6zVy1qjB65WyY39SHO6zI",
@@ -16,7 +16,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // 2. Initialize Firestore
-// Connect explicitly to the 'customer-orders' database ID to fix timeout/connection hanging issues.
+// Explicitly connecting to the named database 'customer-orders' to prevent timeouts
 export const db = getFirestore(app, 'customer-orders');
+
+// 3. Initialize Auth
+export const auth = getAuth(app);
+export const googleProvider = new GoogleAuthProvider();
+export const appleProvider = new OAuthProvider('apple.com');
 
 console.log("Firebase initialized (Modular SDK) for 'customer-orders' database");

@@ -1,25 +1,27 @@
 import React, { useState, useMemo } from 'react';
 import { useQueue } from '../contexts/QueueContext';
+import { useAuth } from '../contexts/AuthContext';
 import { PRICING_CONFIG } from '../constants';
-import { CartItem, WaitTimeEstimate } from '../types';
-import { ShoppingCart, Plus, Trash2, CheckCircle, Clock, DollarSign, Info, Users, PenTool, Loader } from 'lucide-react';
+import { CartItem, WaitTimeEstimate, QueueStatus } from '../types';
+import { ShoppingCart, Plus, Trash2, CheckCircle, Clock, DollarSign, Info, Users, PenTool, Loader, User, Mail, History, Package, Calendar, XCircle, RotateCw } from 'lucide-react';
 
 export const CustomerInterface = () => {
   const { getPendingCount, addEntries, calculateWaitTime, queue } = useQueue();
+  const { currentUser, logout } = useAuth();
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [activeTab, setActiveTab] = useState<'new' | 'history'>('new');
   
-  // Form State
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
   const [selectedType, setSelectedType] = useState('');
   const [selectedItem, setSelectedItem] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [engravingText, setEngravingText] = useState('');
   
-  // UI State
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successData, setSuccessData] = useState<{ count: number, waitEstimates: WaitTimeEstimate } | null>(null);
+
+  const customerName = currentUser?.displayName || currentUser?.email?.split('@')[0] || 'Customer';
+  const customerEmail = currentUser?.email || '';
 
   const pendingCount = getPendingCount();
 
@@ -30,10 +32,21 @@ export const CustomerInterface = () => {
     ? PRICING_CONFIG[selectedType][selectedItem] 
     : null;
 
-  // Real-time calculation of wait times based on current cart and current queue
+  // Filter queue for current customer history
+  const myHistory = useMemo(() => {
+    return queue
+      .filter(entry => entry.email === customerEmail)
+      .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+  }, [queue, customerEmail]);
+
   const waitEstimates: WaitTimeEstimate = useMemo(() => {
     return calculateWaitTime(cart);
   }, [cart, queue, calculateWaitTime]);
+
+  // Calculate baseline wait time for the queue itself (0 items in cart)
+  const currentQueueWait = useMemo(() => {
+    return calculateWaitTime([]); 
+  }, [queue, calculateWaitTime]);
 
   const addToCart = () => {
     if (!selectedType || !selectedItem || !currentItemDetails || !engravingText.trim()) return;
@@ -47,7 +60,6 @@ export const CustomerInterface = () => {
       engravingText: engravingText.trim()
     };
 
-    // Check if exists to update quantity (only if engraving text matches)
     const existingIndex = cart.findIndex(
       c => c.type === newItem.type && c.item === newItem.item && c.engravingText === newItem.engravingText
     );
@@ -60,7 +72,6 @@ export const CustomerInterface = () => {
       setCart([...cart, newItem]);
     }
 
-    // Reset item selection
     setSelectedItem('');
     setQuantity(1);
     setEngravingText('');
@@ -78,25 +89,20 @@ export const CustomerInterface = () => {
   }, [cart]);
 
   const handleSubmit = async () => {
-    if (!name || !email || cart.length === 0) return;
+    if (cart.length === 0 || !currentUser) return;
     
     setIsSubmitting(true);
     try {
-        // Capture estimates before adding (as adding changes the queue)
         const currentEstimates = calculateWaitTime(cart);
         
-        await addEntries(name, email, cart);
+        await addEntries(customerName, customerEmail, cart);
         
-        // Show success
         setSuccessData({
           count: cart.reduce((acc, item) => acc + item.number, 0),
           waitEstimates: currentEstimates
         });
         
-        // Reset form
         setCart([]);
-        setName('');
-        setEmail('');
         setSelectedType('');
         setSelectedItem('');
         setEngravingText('');
@@ -111,6 +117,20 @@ export const CustomerInterface = () => {
 
   const handleReset = () => {
     setSuccessData(null);
+    setActiveTab('history'); // Switch to history tab after success
+  };
+
+  const getStatusBadge = (status: QueueStatus) => {
+    switch (status) {
+      case 'pending':
+        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200"><Clock className="w-3 h-3" /> Pending</span>;
+      case 'processing':
+        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200"><Loader className="w-3 h-3 animate-spin" /> Processing</span>;
+      case 'completed':
+        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200"><CheckCircle className="w-3 h-3" /> Completed</span>;
+      case 'cancelled':
+        return <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200"><XCircle className="w-3 h-3" /> Cancelled</span>;
+    }
   };
 
   if (successData) {
@@ -157,7 +177,7 @@ export const CustomerInterface = () => {
             onClick={handleReset}
             className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors shadow-sm"
           >
-            Submit Another Order
+            Thank you for your order!
           </button>
         </div>
       </div>
@@ -166,13 +186,16 @@ export const CustomerInterface = () => {
 
   return (
     <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
-      {/* Left Column: Input Form */}
-      <div className="lg:col-span-7 space-y-8">
-        {/* Status Banner */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+      <div className="lg:col-span-7 space-y-6">
+        
+        {/* Header & Status */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold text-slate-800">Queue Status</h2>
-            <p className="text-slate-500 text-sm">Real-time updates</p>
+            <div className="flex items-center gap-2 text-slate-500 text-sm mt-1">
+                <Clock className="w-4 h-4" />
+                <span>Est. Wait Time: <strong>{currentQueueWait.aheadProcessingMinutes} mins</strong></span>
+            </div>
           </div>
           <div className={`flex items-center gap-3 px-4 py-2 rounded-lg ${pendingCount === 0 ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'}`}>
             <Users className="w-5 h-5" />
@@ -182,148 +205,222 @@ export const CustomerInterface = () => {
           </div>
         </div>
 
-        {/* Pricing Accordion */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <details className="group">
-            <summary className="flex justify-between items-center font-medium cursor-pointer list-none p-6 hover:bg-slate-50 transition-colors">
-              <span className="flex items-center gap-2 text-slate-800">
-                <DollarSign className="w-5 h-5 text-slate-400" />
-                View Pricing & Timing
-              </span>
-              <span className="transition group-open:rotate-180">
-                <svg fill="none" height="24" shapeRendering="geometricPrecision" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" viewBox="0 0 24 24" width="24"><path d="M6 9l6 6 6-6"></path></svg>
-              </span>
-            </summary>
-            <div className="text-slate-600 border-t border-slate-100 bg-slate-50 p-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {Object.entries(PRICING_CONFIG).map(([category, items]) => (
-                <div key={category}>
-                  <h4 className="font-semibold text-slate-800 mb-2">{category}</h4>
-                  <ul className="space-y-1 text-sm">
-                    {Object.entries(items).map(([name, details]) => (
-                      <li key={name} className="flex justify-between">
-                        <span>{name}</span>
-                        <span className="text-slate-500">${details.cost_per_item} / {details.time_per_item_minutes}m</span>
-                      </li>
-                    ))}
-                  </ul>
+        {/* Navigation Tabs */}
+        <div className="flex p-1 bg-slate-100 rounded-lg">
+          <button
+            onClick={() => setActiveTab('new')}
+            className={`flex-1 py-2.5 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'new' 
+                ? 'bg-white text-slate-900 shadow-sm' 
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Plus className="w-4 h-4" /> New Request
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`flex-1 py-2.5 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'history' 
+                ? 'bg-white text-slate-900 shadow-sm' 
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <History className="w-4 h-4" /> Order History
+          </button>
+        </div>
+
+        {activeTab === 'new' ? (
+          /* New Request Form */
+          <div className="space-y-6 animate-fade-in">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+              <details className="group">
+                <summary className="flex justify-between items-center font-medium cursor-pointer list-none p-6 hover:bg-slate-50 transition-colors">
+                  <span className="flex items-center gap-2 text-slate-800">
+                    <DollarSign className="w-5 h-5 text-slate-400" />
+                    View Pricing & Timing
+                  </span>
+                  <span className="transition group-open:rotate-180">
+                    <svg fill="none" height="24" shapeRendering="geometricPrecision" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" viewBox="0 0 24 24" width="24"><path d="M6 9l6 6 6-6"></path></svg>
+                  </span>
+                </summary>
+                <div className="text-slate-600 border-t border-slate-100 bg-slate-50 p-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  {Object.entries(PRICING_CONFIG).map(([category, items]) => (
+                    <div key={category}>
+                      <h4 className="font-semibold text-slate-800 mb-2">{category}</h4>
+                      <ul className="space-y-1 text-sm">
+                        {Object.entries(items).map(([name, details]) => (
+                          <li key={name} className="flex justify-between">
+                            <span>{name}</span>
+                            <span className="text-slate-500">${details.cost_per_item} / {details.time_per_item_minutes}m</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </details>
             </div>
-          </details>
-        </div>
 
-        {/* Main Form */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-4">
-            <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold">1</div>
-            <h3 className="text-lg font-bold text-slate-800">Your Details</h3>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Customer Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="John Doe"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all bg-white text-slate-900"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="john@example.com"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all bg-white text-slate-900"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-4 pt-4">
-            <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold">2</div>
-            <h3 className="text-lg font-bold text-slate-800">Add Items</h3>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
-              <select
-                value={selectedType}
-                onChange={(e) => {
-                  setSelectedType(e.target.value);
-                  setSelectedItem('');
-                }}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white"
-              >
-                <option value="">Select a category...</option>
-                {availableTypes.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Item</label>
-              <select
-                value={selectedItem}
-                onChange={(e) => setSelectedItem(e.target.value)}
-                disabled={!selectedType}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white disabled:bg-slate-100 disabled:text-slate-400"
-              >
-                <option value="">Select an item...</option>
-                {availableItems.map(i => <option key={i} value={i}>{i}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* Engraving Text Input */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
-              <PenTool className="w-4 h-4 text-slate-400" />
-              Engraving Text *
-            </label>
-            <input
-              type="text"
-              value={engravingText}
-              onChange={(e) => setEngravingText(e.target.value)}
-              placeholder="e.g. Initials, Name, or 'USA'"
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all bg-white text-slate-900"
-            />
-            <p className="text-xs text-slate-500 mt-1">This text will be engraved on the selected items.</p>
-          </div>
-
-          {currentItemDetails && (
-             <div className="bg-blue-50 text-blue-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-                <Info className="w-4 h-4" />
-                <span>
-                  {selectedType} - {selectedItem}: <strong>{currentItemDetails.time_per_item_minutes}m</strong> per item, <strong>${currentItemDetails.cost_per_item.toFixed(2)}</strong> each
-                </span>
-             </div>
-          )}
-
-          <div className="flex items-end gap-4">
-             <div className="flex-1">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Quantity</label>
-                <select 
-                  value={quantity}
-                  onChange={(e) => setQuantity(Number(e.target.value))}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white"
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
+              
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-6">
+                <div>
+                    <h2 className="text-2xl font-serif text-slate-900">Hello, {customerName}</h2>
+                    <div className="flex items-center gap-2 text-sm text-slate-500 mt-1">
+                        <Mail className="w-3 h-3" />
+                        {customerEmail}
+                    </div>
+                </div>
+                <button 
+                    onClick={() => logout()}
+                    className="text-sm text-slate-400 hover:text-red-600 font-medium hover:underline flex items-center gap-1 transition-colors"
                 >
-                  {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-             </div>
-             <button
-                onClick={addToCart}
-                disabled={!selectedItem || !engravingText.trim()}
-                className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-             >
-               <Plus className="w-4 h-4" /> Add to Request
-             </button>
+                    Not you? Sign Out
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <h3 className="text-xl font-bold text-slate-800">Add Items</h3>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
+                  <select
+                    value={selectedType}
+                    onChange={(e) => {
+                      setSelectedType(e.target.value);
+                      setSelectedItem('');
+                    }}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white"
+                  >
+                    <option value="">Select a category...</option>
+                    {availableTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Item</label>
+                  <select
+                    value={selectedItem}
+                    onChange={(e) => setSelectedItem(e.target.value)}
+                    disabled={!selectedType}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white disabled:bg-slate-100 disabled:text-slate-400"
+                  >
+                    <option value="">Select an item...</option>
+                    {availableItems.map(i => <option key={i} value={i}>{i}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
+                  <PenTool className="w-4 h-4 text-slate-400" />
+                  Engraving Text *
+                </label>
+                <input
+                  type="text"
+                  value={engravingText}
+                  onChange={(e) => setEngravingText(e.target.value)}
+                  placeholder="e.g. Initials, Name, or 'USA'"
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all bg-white text-slate-900"
+                />
+                <p className="text-xs text-slate-500 mt-1">This text will be engraved on the selected items.</p>
+              </div>
+
+              {currentItemDetails && (
+                <div className="bg-blue-50 text-blue-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+                    <Info className="w-4 h-4" />
+                    <span>
+                      {selectedType} - {selectedItem}: <strong>{currentItemDetails.time_per_item_minutes}m</strong> per item, <strong>${currentItemDetails.cost_per_item.toFixed(2)}</strong> each
+                    </span>
+                </div>
+              )}
+
+              <div className="flex items-end gap-4">
+                <div className="flex-1">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Quantity</label>
+                    <select 
+                      value={quantity}
+                      onChange={(e) => setQuantity(Number(e.target.value))}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none bg-white"
+                    >
+                      {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                </div>
+                <button
+                    onClick={addToCart}
+                    disabled={!selectedItem || !engravingText.trim()}
+                    className="flex-1 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-4 h-4" /> Add to Request
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+        ) : (
+          /* History View */
+          <div className="space-y-6 animate-fade-in">
+             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-bold text-slate-800">My Order History</h3>
+                    <span className="text-sm text-slate-500">{myHistory.length} Total Orders</span>
+                </div>
+
+                {myHistory.length === 0 ? (
+                    <div className="text-center py-12 bg-slate-50 rounded-lg border-2 border-dashed border-slate-100">
+                        <Package className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                        <p className="text-slate-500 font-medium">No order history found</p>
+                        <p className="text-slate-400 text-sm mt-1">Your past orders will appear here.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {myHistory.map((order) => (
+                            <div key={order.id} className={`border border-slate-100 rounded-lg p-4 hover:bg-slate-50 transition-colors ${order.status === 'cancelled' ? 'opacity-60' : ''}`}>
+                                <div className="flex flex-col sm:flex-row justify-between gap-4">
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            {getStatusBadge(order.status)}
+                                            <span className="text-xs text-slate-400">•</span>
+                                            <span className="text-xs text-slate-500 font-mono">#{order.id.slice(0,8)}</span>
+                                        </div>
+                                        <div className={`font-semibold text-slate-800 text-lg ${order.status === 'cancelled' ? 'line-through text-slate-500' : ''}`}>
+                                            {order.type} - {order.item}
+                                        </div>
+                                        {order.engravingText && (
+                                            <div className="text-sm text-indigo-600 mt-0.5">
+                                                "{order.engravingText}"
+                                            </div>
+                                        )}
+                                        <div className="text-sm text-slate-500 mt-2 flex items-center gap-3">
+                                            <span className="flex items-center gap-1">
+                                                <Package className="w-3.5 h-3.5" /> Qty: {order.quantity}
+                                            </span>
+                                            <span className="flex items-center gap-1">
+                                                <DollarSign className="w-3.5 h-3.5" /> ${(order.costPerItem * order.quantity).toFixed(2)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="text-right flex flex-col justify-between">
+                                        <div className="text-xs text-slate-400 flex items-center justify-end gap-1">
+                                            <Calendar className="w-3 h-3" />
+                                            {new Date(order.submittedAt).toLocaleDateString()}
+                                        </div>
+                                        {order.status === 'completed' && order.completedAt && (
+                                            <div className="text-xs text-green-600 font-medium mt-2">
+                                                Completed {new Date(order.completedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+             </div>
+          </div>
+        )}
       </div>
 
-      {/* Right Column: Cart / Summary */}
       <div className="lg:col-span-5 space-y-8">
         <div className="bg-white p-6 rounded-xl shadow-lg border border-indigo-100 sticky top-6">
           <div className="flex items-center justify-between mb-6">
@@ -389,7 +486,6 @@ export const CustomerInterface = () => {
                   <span>${totals.cost.toFixed(2)}</span>
                 </div>
                 
-                {/* Wait Time Estimate */}
                 <div className="bg-indigo-50 p-3 rounded-lg mt-2 text-sm">
                    <div className="flex justify-between text-indigo-900 font-medium">
                      <span>Estimated Total Wait</span>
@@ -403,17 +499,15 @@ export const CustomerInterface = () => {
 
               <button
                 onClick={() => setShowConfirmation(true)}
-                disabled={!name || !email}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-4"
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-md hover:shadow-lg transition-all mt-4"
               >
-                {!name || !email ? 'Enter Name & Email' : 'Review & Submit'}
+                Review & Submit
               </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Confirmation Modal */}
       {showConfirmation && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-scale-in">
@@ -426,8 +520,8 @@ export const CustomerInterface = () => {
               <div className="grid grid-cols-2 gap-4">
                  <div className="bg-slate-50 p-3 rounded-lg">
                     <span className="text-xs text-slate-500 uppercase tracking-wide">Customer</span>
-                    <div className="font-medium text-slate-900">{name}</div>
-                    <div className="text-sm text-slate-600 truncate">{email}</div>
+                    <div className="font-medium text-slate-900">{customerName}</div>
+                    <div className="text-sm text-slate-600 truncate">{customerEmail}</div>
                  </div>
                  <div className="bg-slate-50 p-3 rounded-lg">
                     <span className="text-xs text-slate-500 uppercase tracking-wide">Total Cost</span>
@@ -436,7 +530,6 @@ export const CustomerInterface = () => {
                  </div>
               </div>
 
-              {/* Wait Time Breakdown */}
               <div className="bg-amber-50 border border-amber-100 rounded-lg p-4">
                   <div className="flex items-start gap-3">
                      <Clock className="w-5 h-5 text-amber-600 mt-0.5" />

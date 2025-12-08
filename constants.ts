@@ -1,5 +1,7 @@
 import { PricingConfig } from './types';
 
+export const ADMIN_EMAIL = "admin@engravequeue.com";
+
 export const PRICING_CONFIG: PricingConfig = {
   "Foil": {
     "Blade": { "time_per_item_minutes": 2, "cost_per_item": 5 },
@@ -16,12 +18,9 @@ export const PRICING_CONFIG: PricingConfig = {
 };
 
 export const API_CONFIG = {
-  // Placeholder endpoint: In a real app, this would point to your Cloud Function or Backend Service
-  // which handles the secure connection to BigQuery.
+  // Placeholder endpoint
   ENDPOINT: "https://api.engravequeue.com/v1/ingest",
   ENABLED: true
 };
 
-export const MOCK_INITIAL_DATA = [
-  // Keeping empty for a fresh start, or add mocks here if needed for demo
-];
+export const MOCK_INITIAL_DATA = [];

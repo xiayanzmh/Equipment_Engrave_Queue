@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { QueueEntry, QueueContextType, CartItem, QueueStatus, WaitTimeEstimate } from '../types';
 import { db } from '../firebaseConfig';
@@ -12,21 +11,21 @@ import {
   query, 
   orderBy
 } from 'firebase/firestore';
-
-// Import types separately to avoid runtime errors if the module doesn't export them as values
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 
 const QueueContext = createContext<QueueContextType | undefined>(undefined);
 
 export const QueueProvider = ({ children }: { children?: ReactNode }) => {
   const [queue, setQueue] = useState<QueueEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Real-time Firestore Listener
   useEffect(() => {
-    // Modular Syntax: query(collection(...), orderBy(...))
+    setLoading(true);
+    // Connect to the 'queue' collection in the database
     const q = query(collection(db, 'queue'), orderBy('submittedAt', 'asc'));
 
-    // Modular Syntax: onSnapshot(query, callback)
     const unsubscribe = onSnapshot(
       q,
       (snapshot: QuerySnapshot<DocumentData>) => {
@@ -35,31 +34,34 @@ export const QueueProvider = ({ children }: { children?: ReactNode }) => {
           ...doc.data()
         } as QueueEntry));
         setQueue(entries);
+        setLoading(false);
+        setError(null);
         console.log("Queue updated from Firestore:", entries.length, "entries");
       },
-      (error: any) => {
-        console.error("Error connecting to Firestore:", error);
-        if (error.code === 'permission-denied') {
-            console.warn("⚠️ PERMISSION DENIED: Please go to Firebase Console > Firestore Database > Rules and change them to 'allow read, write: if true;'");
+      (err: any) => {
+        console.error("Error connecting to Firestore:", err);
+        setLoading(false);
+        if (err.code === 'permission-denied') {
+            setError("Permission Denied: Please update Firestore Rules to 'allow read, write: if true;'");
+        } else {
+            setError("Connection Failed: Could not connect to database. Check internet or project config.");
         }
       }
     );
 
-    // Cleanup listener on unmount
     return () => unsubscribe();
   }, []);
 
   const addEntries = async (name: string, email: string, items: CartItem[]) => {
     console.log("Starting write to Firestore...");
     
-    // Create a Promise that rejects after 30 seconds to handle hanging connections
+    // Safety timeout
     const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Request timed out. Please check if your computer can access Google Cloud, or if the database ID 'customer-orders' exists.")), 30000)
+        setTimeout(() => reject(new Error("Request timed out. Check internet connection.")), 30000)
     );
 
     const performWrite = async () => {
         const batchPromises = items.map(item => {
-            // Modular Syntax: addDoc(collection(...), data)
             return addDoc(collection(db, 'queue'), {
                 customerName: name,
                 email,
@@ -77,7 +79,6 @@ export const QueueProvider = ({ children }: { children?: ReactNode }) => {
         console.log("Write complete!");
     };
 
-    // Race the write against the timeout
     await Promise.race([performWrite(), timeoutPromise]);
   };
 
@@ -87,11 +88,10 @@ export const QueueProvider = ({ children }: { children?: ReactNode }) => {
     if (status === 'completed') {
       updates.completedAt = new Date().toISOString();
     } else if (status === 'processing') {
-      updates.completedAt = null; // Reset if moving back
+      updates.completedAt = null;
     }
     
     try {
-      // Modular Syntax: updateDoc(doc(...), data)
       const entryRef = doc(db, 'queue', id);
       await updateDoc(entryRef, updates);
     } catch (e) {
@@ -102,17 +102,21 @@ export const QueueProvider = ({ children }: { children?: ReactNode }) => {
 
   const deleteEntry = async (id: string) => {
     try {
-      // Modular Syntax: deleteDoc(doc(...))
+      console.log("Attempting to delete doc:", id);
       const entryRef = doc(db, 'queue', id);
       await deleteDoc(entryRef);
-    } catch (e) {
+      console.log("Delete successful");
+    } catch (e: any) {
       console.error("Error deleting entry:", e);
-      alert("Failed to delete entry.");
+      if (e.code === 'permission-denied') {
+        alert("Permission Denied: You do not have permission to delete this entry. Check Firestore Rules.");
+      } else {
+        alert(`Failed to delete entry: ${e.message}`);
+      }
     }
   };
 
   const getPendingCount = () => {
-    // Count distinct customer names in the pending queue
     const pendingCustomers = new Set(
       queue.filter(q => q.status === 'pending').map(q => q.customerName)
     );
@@ -120,20 +124,18 @@ export const QueueProvider = ({ children }: { children?: ReactNode }) => {
   };
 
   const calculateWaitTime = (items: CartItem[]): WaitTimeEstimate => {
-    // 1. Calculate time for entries ahead (pending + processing)
+    // Only pending and processing items count towards wait time
+    // Cancelled items are ignored
     const aheadEntries = queue.filter(q => q.status === 'pending' || q.status === 'processing');
     
-    // Count distinct customer names ahead
     const uniqueCustomersAhead = new Set(
       aheadEntries.map(q => q.customerName)
     ).size;
 
-    // Time is still the sum of all individual items
     const aheadProcessingMinutes = aheadEntries.reduce((acc, entry) => {
       return acc + (entry.timePerItem * entry.quantity);
     }, 0);
 
-    // 2. Calculate time for user items
     const userProcessingMinutes = items.reduce((acc, item) => {
       return acc + (item.timePerItem * item.number);
     }, 0);
@@ -150,11 +152,17 @@ export const QueueProvider = ({ children }: { children?: ReactNode }) => {
     pending: queue.filter(q => q.status === 'pending').length,
     processing: queue.filter(q => q.status === 'processing').length,
     completed: queue.filter(q => q.status === 'completed').length,
+    cancelled: queue.filter(q => q.status === 'cancelled').length,
     total: queue.length
   };
 
   return (
     <QueueContext.Provider value={{ queue, addEntries, updateStatus, deleteEntry, getPendingCount, calculateWaitTime, stats }}>
+      {error && (
+        <div className="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-50">
+            <strong>Database Error:</strong> {error}
+        </div>
+      )}
       {children}
     </QueueContext.Provider>
   );

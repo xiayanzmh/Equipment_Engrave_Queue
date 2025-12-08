@@ -1,55 +1,82 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { QueueProvider } from './contexts/QueueContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Layout } from './components/Layout';
 import { CustomerInterface } from './components/CustomerInterface';
 import { BackendInterface } from './components/BackendInterface';
-import { Login } from './components/Login';
+import { AuthLanding } from './components/AuthLanding';
+import { ADMIN_EMAIL } from './constants';
 
-const App = () => {
-  const [currentView, setCurrentView] = useState('customer'); // 'customer', 'login', 'backend'
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+const AppContent = () => {
+  const { currentUser, loading } = useAuth();
+  const [currentView, setCurrentView] = useState('customer'); 
 
-  const handleLogin = () => {
-    setIsLoggedIn(true);
-    setCurrentView('backend');
-  };
+  // Effect to automatically route based on role when user logs in
+  useEffect(() => {
+    if (currentUser) {
+        if (currentUser.email === ADMIN_EMAIL) {
+            setCurrentView('backend');
+        } else {
+            setCurrentView('customer');
+        }
+    }
+  }, [currentUser]);
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setCurrentView('customer');
-  };
+  // 1. Loading State
+  if (loading) {
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+            <div className="flex flex-col items-center gap-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+              <p className="text-slate-500 text-sm font-medium">Loading session...</p>
+            </div>
+        </div>
+    )
+  }
+
+  // 2. Unauthenticated State (The Landing Page)
+  if (!currentUser) {
+    return <AuthLanding />;
+  }
+
+  // 3. Authenticated States
+  let content;
+  
+  // Security check: Only show backend if email matches admin
+  if (currentView === 'backend' && currentUser.email === ADMIN_EMAIL) {
+     content = <BackendInterface />;
+  } else {
+     // Default to customer interface for everyone else (or if admin switches view)
+     content = <CustomerInterface />;
+  }
 
   const handleChangeView = (view: string) => {
-    if (view === 'backend' && !isLoggedIn) {
-      setCurrentView('login');
-    } else {
-      setCurrentView(view);
+    // Prevent unauthorized view switching
+    if (view === 'backend' && currentUser.email !== ADMIN_EMAIL) {
+        console.warn("Unauthorized access attempt to backend");
+        return;
     }
-  };
-
-  const renderContent = () => {
-    switch (currentView) {
-      case 'login':
-        return <Login onLogin={handleLogin} onCancel={() => setCurrentView('customer')} />;
-      case 'backend':
-        return isLoggedIn ? <BackendInterface /> : <Login onLogin={handleLogin} onCancel={() => setCurrentView('customer')} />;
-      case 'customer':
-      default:
-        return <CustomerInterface />;
-    }
+    setCurrentView(view);
   };
 
   return (
-    <QueueProvider>
-      <Layout 
-        isLoggedIn={isLoggedIn} 
-        onLogout={handleLogout}
-        currentView={currentView}
-        onChangeView={handleChangeView}
-      >
-        {renderContent()}
-      </Layout>
-    </QueueProvider>
+    <Layout 
+      currentView={currentView}
+      onChangeView={handleChangeView}
+      isLoggedIn={!!currentUser}
+    >
+      {content}
+    </Layout>
+  );
+};
+
+const App = () => {
+  return (
+    <AuthProvider>
+      <QueueProvider>
+        <AppContent />
+      </QueueProvider>
+    </AuthProvider>
   );
 };
 

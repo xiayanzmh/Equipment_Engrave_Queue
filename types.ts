@@ -1,4 +1,4 @@
-export type QueueStatus = 'pending' | 'processing' | 'completed';
+export type QueueStatus = 'pending' | 'processing' | 'completed' | 'cancelled';
 
 export interface QueueEntry {
   id: string;
@@ -53,6 +53,7 @@ export interface QueueContextType {
     pending: number;
     processing: number;
     completed: number;
+    cancelled: number;
     total: number;
   };
 }

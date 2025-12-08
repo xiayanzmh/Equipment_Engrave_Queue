@@ -1,6 +1,6 @@
-
 import React, { useState } from 'react';
 import { useQueue } from '../contexts/QueueContext';
+import { useAuth } from '../contexts/AuthContext';
 import { QueueStatus, QueueEntry } from '../types';
 import { 
   Play, 
@@ -13,34 +13,53 @@ import {
   Search,
   AlertCircle,
   Download,
-  Database,
-  ExternalLink
+  ExternalLink,
+  XCircle,
+  Filter
 } from 'lucide-react';
 
 export const BackendInterface = () => {
-  const { queue, updateStatus, deleteEntry, stats } = useQueue();
+  const { queue, updateStatus, stats } = useQueue();
   const [activeTab, setActiveTab] = useState<'pending' | 'processing' | 'all'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchFilter, setSearchFilter] = useState<'all' | 'name' | 'email'>('all');
 
   const filteredQueue = queue
     .filter(entry => {
       if (activeTab === 'pending') return entry.status === 'pending';
       if (activeTab === 'processing') return entry.status === 'processing';
-      return true; // all
+      // 'all' includes pending, processing, completed, and cancelled
+      return true;
     })
-    .filter(entry => 
-      entry.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.id.includes(searchTerm) ||
-      entry.item.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (entry.engravingText && entry.engravingText.toLowerCase().includes(searchTerm.toLowerCase()))
-    )
-    .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime());
+    .filter(entry => {
+      const term = searchTerm.toLowerCase();
+      if (!term) return true;
+
+      if (searchFilter === 'name') {
+        return entry.customerName.toLowerCase().includes(term);
+      }
+      if (searchFilter === 'email') {
+        return entry.email.toLowerCase().includes(term);
+      }
+      
+      // 'all' logic
+      return (
+        entry.customerName.toLowerCase().includes(term) ||
+        entry.email.toLowerCase().includes(term) ||
+        entry.id.includes(term) ||
+        entry.item.toLowerCase().includes(term) ||
+        (entry.engravingText && entry.engravingText.toLowerCase().includes(term))
+      );
+    })
+    // Sort by latest first (descending)
+    .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
 
   const getStatusColor = (status: QueueStatus) => {
     switch (status) {
       case 'pending': return 'bg-amber-100 text-amber-700 border-amber-200';
       case 'processing': return 'bg-blue-100 text-blue-700 border-blue-200';
       case 'completed': return 'bg-green-100 text-green-700 border-green-200';
+      case 'cancelled': return 'bg-slate-100 text-slate-500 border-slate-200 decoration-slate-400';
     }
   };
 
@@ -49,6 +68,7 @@ export const BackendInterface = () => {
       case 'pending': return <Clock className="w-3 h-3" />;
       case 'processing': return <RotateCw className="w-3 h-3 animate-spin-slow" />;
       case 'completed': return <CheckCircle className="w-3 h-3" />;
+      case 'cancelled': return <XCircle className="w-3 h-3" />;
     }
   };
 
@@ -56,8 +76,16 @@ export const BackendInterface = () => {
     return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'numeric', day: 'numeric' });
   };
 
+  // Modified to "Cancel" directly without confirmation
+  const handleCancel = async (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Directly update status to 'cancelled'
+    await updateStatus(id, 'cancelled');
+  };
+
   const handleExportCSV = () => {
-    // Define headers
     const headers = [
       'ID',
       'Customer Name',
@@ -73,13 +101,12 @@ export const BackendInterface = () => {
       'Time Per Item (min)'
     ];
 
-    // Format rows
     const csvRows = [
-      headers.join(','), // Header row
+      headers.join(','), 
       ...queue.map(row => {
         return [
           row.id,
-          `"${row.customerName.replace(/"/g, '""')}"`, // Escape quotes
+          `"${row.customerName.replace(/"/g, '""')}"`, 
           `"${row.email.replace(/"/g, '""')}"`,
           row.type,
           row.item,
@@ -94,7 +121,6 @@ export const BackendInterface = () => {
       })
     ];
 
-    // Create and download file
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -138,21 +164,36 @@ export const BackendInterface = () => {
               <Download className="w-4 h-4" />
               Export History
             </button>
-            <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                <input 
-                    type="text" 
-                    placeholder="Search orders..." 
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-64"
-                />
+            <div className="flex items-center">
+                <div className="relative">
+                    <select
+                        value={searchFilter}
+                        onChange={(e) => setSearchFilter(e.target.value as any)}
+                        className="appearance-none bg-slate-50 border border-slate-300 text-slate-700 text-sm rounded-l-lg border-r-0 focus:ring-indigo-500 focus:border-indigo-500 block pl-3 pr-8 py-2 outline-none cursor-pointer hover:bg-slate-100 transition-colors"
+                    >
+                        <option value="all">All</option>
+                        <option value="name">Name</option>
+                        <option value="email">Email</option>
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+                        <Filter className="w-3 h-3" />
+                    </div>
+                </div>
+                <div className="relative">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                    <input 
+                        type="text" 
+                        placeholder={searchFilter === 'all' ? "Search..." : `Search by ${searchFilter}...`}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-9 pr-4 py-2 bg-white text-slate-900 border border-slate-300 rounded-r-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-64 placeholder-slate-400"
+                    />
+                </div>
             </div>
         </div>
       </div>
 
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <MetricCard 
           label="Pending" 
           value={stats.pending} 
@@ -172,6 +213,12 @@ export const BackendInterface = () => {
           color="border-green-500" 
         />
         <MetricCard 
+          label="Cancelled" 
+          value={stats.cancelled} 
+          icon={<XCircle className="w-5 h-5 text-slate-500" />} 
+          color="border-slate-400" 
+        />
+        <MetricCard 
           label="Total Orders" 
           value={stats.total} 
           icon={<ClipboardList className="w-5 h-5 text-slate-600" />} 
@@ -179,7 +226,6 @@ export const BackendInterface = () => {
         />
       </div>
 
-      {/* Tabs */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="flex border-b border-slate-200">
           <TabButton 
@@ -216,16 +262,17 @@ export const BackendInterface = () => {
           ) : (
             <div className="space-y-4">
               {filteredQueue.map(entry => (
-                <div key={entry.id} className="bg-white border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                <div key={entry.id} className={`bg-white border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow ${entry.status === 'cancelled' ? 'opacity-60 bg-slate-50' : ''}`}>
                   <div className="flex flex-col md:flex-row justify-between gap-4">
-                    {/* Header / Info */}
                     <div className="flex-1 space-y-3">
                       <div className="flex items-center gap-3">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(entry.status)} uppercase tracking-wide`}>
                           {getStatusIcon(entry.status)}
                           {entry.status}
                         </span>
-                        <h3 className="font-bold text-slate-900">{entry.customerName}</h3>
+                        <h3 className={`font-bold text-slate-900 ${entry.status === 'cancelled' ? 'line-through text-slate-500' : ''}`}>
+                            {entry.customerName}
+                        </h3>
                         <span className="text-sm text-slate-500 hidden sm:inline">•</span>
                         <span className="text-sm text-slate-500">{entry.email}</span>
                       </div>
@@ -244,7 +291,7 @@ export const BackendInterface = () => {
                         <div>
                            <span className="text-slate-500 block text-xs uppercase tracking-wide mb-1">Timeline</span>
                            <div className="text-slate-700">Sub: {formatTime(entry.submittedAt)}</div>
-                           {entry.completedAt && (
+                           {entry.completedAt && entry.status !== 'cancelled' && (
                                <div className="text-green-600">Done: {formatTime(entry.completedAt)}</div>
                            )}
                         </div>
@@ -255,50 +302,37 @@ export const BackendInterface = () => {
                       </div>
                     </div>
 
-                    {/* Actions */}
-                    {entry.status !== 'completed' && (
-                        <div className="flex items-center gap-2 border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-4">
-                            {entry.status === 'pending' && (
-                                <button 
-                                    onClick={() => updateStatus(entry.id, 'processing')}
-                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
-                                >
-                                    <Play className="w-4 h-4" /> Start
-                                </button>
-                            )}
-                            {entry.status === 'processing' && (
-                                <button 
-                                    onClick={() => updateStatus(entry.id, 'completed')}
-                                    className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
-                                >
-                                    <CheckSquare className="w-4 h-4" /> Complete
-                                </button>
-                            )}
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2 border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-4">
+                        {entry.status === 'pending' && (
                             <button 
-                                onClick={() => {
-                                    if(window.confirm('Are you sure you want to delete this entry?')) {
-                                        deleteEntry(entry.id);
-                                    }
-                                }}
-                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                title="Delete Entry"
+                                onClick={() => updateStatus(entry.id, 'processing')}
+                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm whitespace-nowrap"
+                            >
+                                <Play className="w-4 h-4" /> Start
+                            </button>
+                        )}
+                        {entry.status === 'processing' && (
+                            <button 
+                                onClick={() => updateStatus(entry.id, 'completed')}
+                                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm whitespace-nowrap"
+                            >
+                                <CheckSquare className="w-4 h-4" /> Complete
+                            </button>
+                        )}
+                        
+                        {/* Cancel Button - Available for all active statuses */}
+                        {entry.status !== 'cancelled' && (
+                            <button 
+                                type="button"
+                                onClick={(e) => handleCancel(e, entry.id)}
+                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
+                                title="Move to Cancelled"
                             >
                                 <Trash2 className="w-4 h-4" />
                             </button>
-                        </div>
-                    )}
-                    
-                    {/* Actions for completed (Delete only) */}
-                    {entry.status === 'completed' && (
-                         <div className="flex items-center justify-end border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-4">
-                            <button 
-                                onClick={() => deleteEntry(entry.id)}
-                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            >
-                                <Trash2 className="w-4 h-4" />
-                            </button>
-                        </div>
-                    )}
+                        )}
+                    </div>
                   </div>
                 </div>
               ))}
