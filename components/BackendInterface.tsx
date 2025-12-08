@@ -15,12 +15,13 @@ import {
   Download,
   ExternalLink,
   XCircle,
-  Filter
+  Filter,
+  RefreshCcw
 } from 'lucide-react';
 
 export const BackendInterface = () => {
   const { queue, updateStatus, stats } = useQueue();
-  const [activeTab, setActiveTab] = useState<'pending' | 'processing' | 'all'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'processing' | 'cancelled' | 'all'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [searchFilter, setSearchFilter] = useState<'all' | 'name' | 'email'>('all');
 
@@ -28,6 +29,7 @@ export const BackendInterface = () => {
     .filter(entry => {
       if (activeTab === 'pending') return entry.status === 'pending';
       if (activeTab === 'processing') return entry.status === 'processing';
+      if (activeTab === 'cancelled') return entry.status === 'cancelled';
       // 'all' includes pending, processing, completed, and cancelled
       return true;
     })
@@ -227,7 +229,7 @@ export const BackendInterface = () => {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="flex border-b border-slate-200">
+        <div className="flex border-b border-slate-200 overflow-x-auto">
           <TabButton 
             active={activeTab === 'pending'} 
             onClick={() => setActiveTab('pending')} 
@@ -241,6 +243,13 @@ export const BackendInterface = () => {
             label="In Progress" 
             count={stats.processing}
             icon={<RotateCw className="w-4 h-4" />}
+          />
+          <TabButton 
+            active={activeTab === 'cancelled'} 
+            onClick={() => setActiveTab('cancelled')} 
+            label="Cancelled" 
+            count={stats.cancelled}
+            icon={<XCircle className="w-4 h-4" />}
           />
           <TabButton 
             active={activeTab === 'all'} 
@@ -320,9 +329,17 @@ export const BackendInterface = () => {
                                 <CheckSquare className="w-4 h-4" /> Complete
                             </button>
                         )}
+                        {entry.status === 'cancelled' && (
+                            <button 
+                                onClick={() => updateStatus(entry.id, 'pending')}
+                                className="flex items-center gap-2 px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm whitespace-nowrap"
+                            >
+                                <RefreshCcw className="w-4 h-4" /> Resume
+                            </button>
+                        )}
                         
                         {/* Cancel Button - Available for all active statuses */}
-                        {entry.status !== 'cancelled' && (
+                        {entry.status !== 'cancelled' && entry.status !== 'completed' && (
                             <button 
                                 type="button"
                                 onClick={(e) => handleCancel(e, entry.id)}
@@ -359,7 +376,7 @@ const MetricCard = ({ label, value, icon, color }: { label: string, value: numbe
 const TabButton = ({ active, onClick, label, count, icon }: { active: boolean, onClick: () => void, label: string, count?: number, icon: React.ReactNode }) => (
   <button
     onClick={onClick}
-    className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors relative ${
+    className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors relative whitespace-nowrap ${
       active ? 'text-indigo-600 bg-indigo-50/50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
     }`}
   >
