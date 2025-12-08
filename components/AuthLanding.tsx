@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Lock, User, Loader, LogIn, UserPlus, ShieldCheck, Settings } from 'lucide-react';
+import { Mail, Lock, User, Loader, LogIn, UserPlus, ShieldCheck } from 'lucide-react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
 import { ADMIN_EMAIL } from '../constants';
@@ -11,7 +11,6 @@ export const AuthLanding = () => {
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isStaffSetup, setIsStaffSetup] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,11 +19,8 @@ export const AuthLanding = () => {
 
     try {
       if (activeTab === 'staff') {
-        if (isStaffSetup) {
-           await createUserWithEmailAndPassword(auth, ADMIN_EMAIL, password);
-        } else {
-           await signInWithEmailAndPassword(auth, ADMIN_EMAIL, password);
-        }
+        // Staff Login - Password Only (using constant ADMIN_EMAIL)
+        await signInWithEmailAndPassword(auth, ADMIN_EMAIL, password);
       } else if (activeTab === 'register') {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         if (userCredential.user && fullName) {
@@ -51,7 +47,6 @@ export const AuthLanding = () => {
       setPassword('');
       setFullName('');
       setError('');
-      setIsStaffSetup(false);
   };
 
   return (
@@ -105,12 +100,12 @@ export const AuthLanding = () => {
                 <h2 className="text-2xl font-serif text-stone-900 mb-2">
                     {activeTab === 'login' && 'Welcome Back'}
                     {activeTab === 'register' && 'Create Account'}
-                    {activeTab === 'staff' && (isStaffSetup ? 'Staff Setup' : 'Staff Portal')}
+                    {activeTab === 'staff' && 'Staff Portal'}
                 </h2>
                 <p className="text-sm text-stone-500">
                     {activeTab === 'login' && 'Sign in to check your status or add orders.'}
                     {activeTab === 'register' && 'Enter your details to start a new order.'}
-                    {activeTab === 'staff' && (isStaffSetup ? 'Create the Master Admin password.' : 'Enter Master Password to access backend.')}
+                    {activeTab === 'staff' && 'Enter Master Password to access backend.'}
                 </p>
             </div>
 
@@ -188,22 +183,11 @@ export const AuthLanding = () => {
                     <>
                     {activeTab === 'login' && <><LogIn className="w-5 h-5" /> Log In</>}
                     {activeTab === 'register' && <><UserPlus className="w-5 h-5" /> Create Account</>}
-                    {activeTab === 'staff' && (isStaffSetup ? <><Settings className="w-5 h-5" /> Setup Access</> : <><ShieldCheck className="w-5 h-5" /> Access Backend</>)}
+                    {activeTab === 'staff' && <><ShieldCheck className="w-5 h-5" /> Access Backend</>}
                     </>
                 )}
                 </button>
             </form>
-
-            {activeTab === 'staff' && (
-                <div className="mt-6 text-center">
-                    <button 
-                        onClick={() => setIsStaffSetup(!isStaffSetup)}
-                        className="text-xs text-stone-400 hover:text-stone-600 underline"
-                    >
-                        {isStaffSetup ? 'Back to Login' : 'First time? Setup Admin Access'}
-                    </button>
-                </div>
-            )}
         </div>
       </div>
       
