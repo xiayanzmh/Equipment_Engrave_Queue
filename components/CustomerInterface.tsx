@@ -225,8 +225,8 @@ export const CustomerInterface = () => {
           <button
             onClick={() => setActiveTab('new')}
             className={`flex-1 py-2.5 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 ${activeTab === 'new'
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700'
+              ? 'bg-white text-slate-900 shadow-sm'
+              : 'text-slate-500 hover:text-slate-700'
               }`}
           >
             <Plus className="w-4 h-4" /> New Request
@@ -234,8 +234,8 @@ export const CustomerInterface = () => {
           <button
             onClick={() => setActiveTab('history')}
             className={`flex-1 py-2.5 text-sm font-medium rounded-md transition-all flex items-center justify-center gap-2 ${activeTab === 'history'
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700'
+              ? 'bg-white text-slate-900 shadow-sm'
+              : 'text-slate-500 hover:text-slate-700'
               }`}
           >
             <History className="w-4 h-4" /> Order History
@@ -347,6 +347,28 @@ export const CustomerInterface = () => {
                   <span>
                     {selectedType} - {selectedItem}: <strong>{currentItemDetails.time_per_item_minutes}m</strong> per item, <strong>${currentItemDetails.cost_per_item.toFixed(2)}</strong> each
                   </span>
+                </div>
+              )}
+
+
+              {/* Product Image Display */}
+              {selectedType === 'Foil' && selectedItem === 'Blade' && (
+                <div className="w-full h-64 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 mb-4">
+                  <img
+                    src="/images/foil-blade-example.jpg"
+                    alt="Foil Blade Example"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+
+              {selectedType === 'Foil' && selectedItem === 'Guard' && (
+                <div className="w-full h-64 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 mb-4">
+                  <img
+                    src="/images/foil-guard-example.jpg"
+                    alt="Foil Guard Example"
+                    className="w-full h-full object-cover"
+                  />
                 </div>
               )}
 
