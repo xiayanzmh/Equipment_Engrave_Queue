@@ -1,0 +1,16 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Match the 'queue' collection
+    match /queue/{document=**} {
+      // Allow any authenticated user to read the queue (for wait times) and add new requests
+      allow read, create: if request.auth != null;
+
+      // Only the specific admin email can update status or delete entries
+      // Update this email to match your real admin account!
+      allow update, delete: if request.auth != null && 
+                             (request.auth.token.email == 'xiayanzma@gmail.com' || 
+                              request.auth.token.email == 'admin@engravequeue.com');
+    }
+  }
+}
