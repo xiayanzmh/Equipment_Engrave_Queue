@@ -353,21 +353,21 @@ export const CustomerInterface = () => {
 
               {/* Product Image Display */}
               {selectedType === 'Foil' && selectedItem === 'Blade' && (
-                <div className="w-full h-64 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 mb-4">
+                <div className="w-full h-48 bg-slate-50 rounded-lg overflow-hidden border border-slate-200 mb-4 flex items-center justify-center">
                   <img
                     src="/images/foil-blade-example.jpg"
                     alt="Foil Blade Example"
-                    className="w-full h-full object-cover"
+                    className="h-full w-auto object-contain"
                   />
                 </div>
               )}
 
               {selectedType === 'Foil' && selectedItem === 'Guard' && (
-                <div className="w-full h-64 bg-slate-100 rounded-lg overflow-hidden border border-slate-200 mb-4">
+                <div className="w-full h-48 bg-slate-50 rounded-lg overflow-hidden border border-slate-200 mb-4 flex items-center justify-center">
                   <img
                     src="/images/foil-guard-example.jpg"
                     alt="Foil Guard Example"
-                    className="w-full h-full object-cover"
+                    className="h-full w-auto object-contain"
                   />
                 </div>
               )}
