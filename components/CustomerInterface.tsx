@@ -1,9 +1,10 @@
+
 import React, { useState, useMemo } from 'react';
 import { useQueue } from '../contexts/QueueContext';
 import { useAuth } from '../contexts/AuthContext';
 import { PRICING_CONFIG } from '../constants';
 import { CartItem, WaitTimeEstimate, QueueStatus } from '../types';
-import { ShoppingCart, Plus, Trash2, CheckCircle, Clock, DollarSign, Info, Users, PenTool, Loader, User, Mail, History, Package, Calendar, XCircle, RotateCw } from 'lucide-react';
+import { ShoppingCart, Plus, Trash2, CheckCircle, Clock, DollarSign, Info, Users, PenTool, Loader, User, Mail, History, Package, Calendar, XCircle, RotateCw, ExternalLink, ArrowRight, X } from 'lucide-react';
 
 export const CustomerInterface = () => {
   const { getPendingCount, addEntries, calculateWaitTime, queue } = useQueue();
@@ -19,6 +20,14 @@ export const CustomerInterface = () => {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successData, setSuccessData] = useState<{ count: number, waitEstimates: WaitTimeEstimate } | null>(null);
+  const [showAd, setShowAd] = useState(true);
+
+  // --- ADVERTISEMENT CONFIGURATION ---
+  const AD_LINK = "https://www.absolutefencinggear.com/";
+  const AD_TITLE = "Absolute Fencing Gear";
+  // Updated to use Google's Favicon service which is more reliable than direct linking to .ico files
+  const AD_ICON = "https://www.google.com/s2/favicons?domain=www.absolutefencinggear.com&sz=128";
+  // -----------------------------------
 
   const customerName = currentUser?.displayName || currentUser?.email?.split('@')[0] || 'Customer';
   const customerEmail = currentUser?.email || '';
@@ -191,7 +200,7 @@ export const CustomerInterface = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+    <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 relative pb-20">
       <div className="lg:col-span-7 space-y-6">
         
         {/* Header & Status */}
@@ -321,7 +330,7 @@ export const CustomerInterface = () => {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
                   <PenTool className="w-4 h-4 text-slate-400" />
-                  Engraving Text *
+                  Engraving Text <span className="text-xs text-amber-600 font-normal">(Required)</span>
                 </label>
                 <input
                   type="text"
@@ -514,6 +523,33 @@ export const CustomerInterface = () => {
           )}
         </div>
       </div>
+
+      {/* --- RECOMMENDATION BAR --- */}
+      {showAd && (
+        <div 
+          onClick={() => window.open(AD_LINK, '_blank')}
+          className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-50 flex items-center justify-center p-3 gap-4 cursor-pointer hover:bg-slate-50 transition-colors"
+        >
+           <button 
+             onClick={(e) => { e.stopPropagation(); setShowAd(false); }}
+             className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+             title="Close"
+           >
+             <X className="w-4 h-4" />
+           </button>
+           
+           <div className="flex items-center gap-3">
+              <div className="w-8 h-8 flex-shrink-0 rounded-full border border-slate-100 overflow-hidden bg-white p-0.5">
+                 <img src={AD_ICON} alt="AF" className="w-full h-full object-contain" />
+              </div>
+              <div className="flex items-center gap-2">
+                 <span className="text-sm font-medium text-slate-900">Recommended Partner: <span className="font-bold">{AD_TITLE}</span></span>
+                 <ExternalLink className="w-3.5 h-3.5 text-indigo-600" />
+              </div>
+           </div>
+        </div>
+      )}
+      {/* ------------------------- */}
 
       {showConfirmation && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
