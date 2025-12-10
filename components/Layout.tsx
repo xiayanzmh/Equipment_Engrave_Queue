@@ -2,6 +2,7 @@ import React from 'react';
 import { Ticket, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { ADMIN_EMAIL } from '../constants';
+import { NotificationBell } from './NotificationBell';
 
 interface LayoutProps {
   children?: React.ReactNode;
@@ -35,29 +36,30 @@ export const Layout = ({ children, currentView, onChangeView }: LayoutProps) => 
                   <Ticket className="h-6 w-6 text-white" />
                 </div>
                 <div className="flex flex-col">
-                    <span className="font-bold text-xl text-slate-900 tracking-tight">EngraveQueue</span>
-                    <span className="text-xs text-slate-500 font-medium">Customer Kiosk</span>
+                  <span className="font-bold text-xl text-slate-900 tracking-tight">EngraveQueue</span>
+                  <span className="text-xs text-slate-500 font-medium">Customer Kiosk</span>
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-4">
               {currentUser && !isLanding && (
                 <>
                   {isAdmin && (
-                      <button 
-                        onClick={() => onChangeView('backend')}
-                        className={`text-sm font-medium transition-colors ${currentView === 'backend' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-900'}`}
-                      >
-                        Backend
-                      </button>
+                    <button
+                      onClick={() => onChangeView('backend')}
+                      className={`text-sm font-medium transition-colors ${currentView === 'backend' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-900'}`}
+                    >
+                      Backend
+                    </button>
                   )}
-                  <button 
+                  <button
                     onClick={() => onChangeView('customer')}
                     className={`text-sm font-medium transition-colors ${currentView === 'customer' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-900'}`}
                   >
                     My Queue
                   </button>
+                  <NotificationBell />
                   <div className="h-4 w-px bg-slate-200 mx-2"></div>
                   <button
                     onClick={handleLogout}

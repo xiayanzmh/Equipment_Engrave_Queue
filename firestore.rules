@@ -1,16 +1,30 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Match the 'queue' collection
+    
+    // Queue collection - authenticated users can read and create
     match /queue/{document=**} {
-      // Allow any authenticated user to read the queue (for wait times) and add new requests
-      allow read, create: if request.auth != null;
-
-      // Only the specific admin email can update status or delete entries
-      // Update this email to match your real admin account!
-      allow update, delete: if request.auth != null && 
-                             (request.auth.token.email == 'xiayanzma@gmail.com' || 
-                              request.auth.token.email == 'admin@engravequeue.com');
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && request.auth.token.email == 'thomashxyan@gmail.com';
+    }
+    
+    // Notifications collection
+    match /notifications/{notificationId} {
+      // Users can read their own notifications
+      allow read: if request.auth != null && request.auth.token.email == resource.data.userId;
+      // Users can update/delete their own notifications (mark as read, clear)
+      allow update, delete: if request.auth != null && request.auth.token.email == resource.data.userId;
+      // Only server (Cloud Functions) can create notifications
+      allow create: if false;
+    }
+    
+    // User FCM tokens collection
+    match /user_tokens/{tokenId} {
+      // Users can read and write their own tokens
+      allow read, write: if request.auth != null && request.auth.token.email == resource.data.userId;
+      // Allow create with matching userId
+      allow create: if request.auth != null && request.auth.token.email == request.resource.data.userId;
     }
   }
 }

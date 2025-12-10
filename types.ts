@@ -57,3 +57,30 @@ export interface QueueContextType {
     total: number;
   };
 }
+
+// Notification types
+export interface Notification {
+  id: string;
+  userId: string;
+  orderId: string;
+  type: 'order_completed';
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: any; // Firestore Timestamp or string
+}
+
+export interface NotificationContextType {
+  notifications: Notification[];
+  unreadCount: number;
+  markAsRead: (id: string) => Promise<void>;
+  markAllAsRead: () => Promise<void>;
+  clearNotification: (id: string) => Promise<void>;
+}
+
+export interface UserToken {
+  userId: string;
+  fcmToken: string;
+  createdAt: string;
+  lastUsed: string;
+}

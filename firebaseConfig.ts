@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
+import { getMessaging, isSupported } from 'firebase/messaging';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDtm-13Eavq9c6zVy1qjB65WyY39SHO6zI",
@@ -23,5 +24,15 @@ export const db = getFirestore(app, 'customer-orders');
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 export const appleProvider = new OAuthProvider('apple.com');
+
+// 4. Initialize Messaging (only if supported - not all browsers support it)
+let messaging: any = null;
+isSupported().then((supported) => {
+  if (supported) {
+    messaging = getMessaging(app);
+  }
+});
+
+export const getMessagingInstance = () => messaging;
 
 console.log("Firebase initialized (Modular SDK) for 'customer-orders' database");
